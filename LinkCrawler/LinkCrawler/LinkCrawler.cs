@@ -18,7 +18,7 @@ namespace LinkCrawler
         public string BaseUrl { get; set; }
         public bool CheckImages { get; set; }
         public bool FollowRedirects { get; set; }
-        private bool AuthenticatedSite { get; set; }
+        private bool NeedToLogIn { get; set; }
         private string AuthLoginUrl { get; set; }
         private string AuthLoginPostBody { get; set; }
 
@@ -41,7 +41,7 @@ namespace LinkCrawler
             FollowRedirects = settings.FollowRedirects;
             AuthLoginUrl = settings.AuthLoginUrl ?? "";
             AuthLoginPostBody = settings.AuthLoginPostBody ?? "";
-            AuthenticatedSite = settings.AuthLoginUrl != null;
+            NeedToLogIn = settings.AuthLoginUrl != null;
 
             UrlList = new List<LinkModel>();
             GetRequest = new RestRequest(Method.GET).SetHeader("Accept", "*/*");
@@ -64,8 +64,13 @@ namespace LinkCrawler
         {
             var requestModel = new RequestModel(crawlUrl, referrerUrl, BaseUrl);
             Client.BaseUrl = new Uri(crawlUrl);
-            if (AuthenticatedSite && crawlUrl == BaseUrl + AuthLoginUrl)
+            if (NeedToLogIn && crawlUrl.StartsWith(BaseUrl + AuthLoginUrl))
             {
+                NeedToLogIn = false; // only try this once, in case we get stuck in an infinite loop of errors
+                Console.WriteLine("***HOLY SHIT!!***");
+                Console.WriteLine("***HOLY SHIT!!***");
+                Console.WriteLine("***HOLY SHIT!!***");
+                Console.WriteLine("***HOLY SHIT!!***");
                 Console.WriteLine("***HOLY SHIT!!***");
                 PostRequest = new RestRequest(Method.POST).AddBody(AuthLoginPostBody) as RestRequest;
                 Client.ExecuteAsync(PostRequest, response =>
