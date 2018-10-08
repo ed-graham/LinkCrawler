@@ -62,5 +62,11 @@ namespace LinkCrawler.Utils.Settings
             var configuredCodes = ConfigurationManager.AppSettings[Constants.AppSettings.RedirectHttpStatusCodes] ?? "3xx";
             return statusCode.IsMatch(configuredCodes);
         }
+
+        public string AuthLoginUrl =>
+            ConfigurationManager.AppSettings[Constants.AppSettings.AuthLoginUrl];
+
+        public string AuthLoginPostBody =>
+            ConfigurationManager.AppSettings[Constants.AppSettings.AuthLoginPostBody];
     }
 }

@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 
 namespace LinkCrawler
 {
@@ -17,14 +18,19 @@ namespace LinkCrawler
         public string BaseUrl { get; set; }
         public bool CheckImages { get; set; }
         public bool FollowRedirects { get; set; }
+        private bool AuthenticatedSite { get; set; }
+        private string AuthLoginUrl { get; set; }
+        private string AuthLoginPostBody { get; set; }
+
         private RestRequest GetRequest { get; set; }
+        private RestRequest PostRequest { get; set; }
         private RestClient Client{ get; set; }
         public IEnumerable<IOutput> Outputs { get; set; }
         public IValidUrlParser ValidUrlParser { get; set; }
         public bool OnlyReportBrokenLinksToOutput { get; set; }
         public List<LinkModel> UrlList;
-        private ISettings _settings;
-        private Stopwatch timer;
+        private readonly ISettings _settings;
+        private readonly Stopwatch timer;
 
         public LinkCrawler(IEnumerable<IOutput> outputs, IValidUrlParser validUrlParser, ISettings settings)
         {
@@ -33,11 +39,15 @@ namespace LinkCrawler
             ValidUrlParser = validUrlParser;
             CheckImages = settings.CheckImages;
             FollowRedirects = settings.FollowRedirects;
+            AuthLoginUrl = settings.AuthLoginUrl ?? "";
+            AuthLoginPostBody = settings.AuthLoginPostBody ?? "";
+            AuthenticatedSite = settings.AuthLoginUrl != null;
+
             UrlList = new List<LinkModel>();
             GetRequest = new RestRequest(Method.GET).SetHeader("Accept", "*/*");
             Client = new RestClient() { FollowRedirects = false }; // we don't want RestSharp following the redirects, otherwise we won't see them
             // https://stackoverflow.com/questions/8823349/how-do-i-use-the-cookie-container-with-restsharp-and-asp-net-sessions - set cookies up according to this link?
-
+            Client.CookieContainer = new CookieContainer(); // yup, that's it right there - nothing else to say
             OnlyReportBrokenLinksToOutput = settings.OnlyReportBrokenLinksToOutput;
             _settings = settings;
             this.timer = new Stopwatch();
@@ -54,15 +64,30 @@ namespace LinkCrawler
         {
             var requestModel = new RequestModel(crawlUrl, referrerUrl, BaseUrl);
             Client.BaseUrl = new Uri(crawlUrl);
-
-            Client.ExecuteAsync(GetRequest, response =>
+            if (AuthenticatedSite && crawlUrl == BaseUrl + AuthLoginUrl)
             {
-                if (response == null)
-                    return;
+                Console.WriteLine("***HOLY SHIT!!***");
+                PostRequest = new RestRequest(Method.POST).AddBody(AuthLoginPostBody) as RestRequest;
+                Client.ExecuteAsync(PostRequest, response =>
+                {
+                    if (response == null)
+                        return;
 
-                var responseModel = new ResponseModel(response, requestModel, _settings);
-                ProcessResponse(responseModel);
-            });
+                    var responseModel = new ResponseModel(response, requestModel, _settings);
+                    ProcessResponse(responseModel);
+                });
+            }
+            else
+            {
+                Client.ExecuteAsync(GetRequest, response =>
+                {
+                    if (response == null)
+                        return;
+
+                    var responseModel = new ResponseModel(response, requestModel, _settings);
+                    ProcessResponse(responseModel);
+                });
+            }
         }
 
         public void ProcessResponse(IResponseModel responseModel)

@@ -13,7 +13,7 @@ namespace LinkCrawler.Models
         public string RequestedUrl { get; }
         public string ReferrerUrl { get; }
         public string Location { get; }
-        public IList<RestResponseCookie> Cookies { get; }
+        private IList<RestResponseCookie> Cookies { get; }
 
         public HttpStatusCode StatusCode { get; }
         public int StatusCodeNumber { get { return (int)StatusCode; } }
@@ -45,28 +45,30 @@ namespace LinkCrawler.Models
 
         public override string ToString()
         {
+            // cater for HTTP "999" codes returned
+            string statusCode = StatusCodeNumber == 999 ? "[Request denied]" : StatusCode.ToString();
+            string output = $"{StatusCodeNumber}\t{statusCode}\t{RequestedUrl}";
+
             if (!IsSuccess)
             {
-                // cater for HTTP "999" codes returned
-                string statusCode = StatusCodeNumber == 999 ? "[Request denied]" : StatusCode.ToString();
                 if (!String.IsNullOrEmpty(ErrorMessage))
                 {
-                    return $"{StatusCodeNumber}\t{statusCode}\t{RequestedUrl}{Environment.NewLine}\tError:\t{ErrorMessage}{Environment.NewLine}\tReferer:\t{ReferrerUrl}";
+                    return $"{output}{Environment.NewLine}\tError:\t{ErrorMessage}{Environment.NewLine}\tReferer:\t{ReferrerUrl}";
                 }
                 else
                 {
-                    return $"{StatusCodeNumber}\t{statusCode}\t{RequestedUrl}{Environment.NewLine}\tReferer:\t{ReferrerUrl}";
+                    return $"{output}{Environment.NewLine}\tReferer:\t{ReferrerUrl}";
                 }
             }
             else
             {
                 if (!String.IsNullOrEmpty(Location))
                 {
-                    return $"{StatusCodeNumber}\t{StatusCode}\t{RequestedUrl}{Environment.NewLine}\t->\t{Location}";
+                    return $"{output}{Environment.NewLine}\t->\t{Location}";
                 }
                 else
                 {
-                    return $"{StatusCodeNumber}\t{StatusCode}\t{RequestedUrl}";
+                    return $"{output}";
                 }
             }
         }

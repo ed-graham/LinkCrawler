@@ -10,6 +10,10 @@ namespace LinkCrawler.Utils.Settings {
 
         public bool FollowRedirects => true;
 
+        public string AuthLoginUrl => "";
+
+        public string AuthLoginPostBody => "";
+
         public string CsvDelimiter => ";";
 
         public string CsvFilePath => @"C:\tmp\output.csv";
