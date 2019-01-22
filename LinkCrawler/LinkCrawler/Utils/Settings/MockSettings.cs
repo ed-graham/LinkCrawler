@@ -14,6 +14,8 @@ namespace LinkCrawler.Utils.Settings {
 
         public string AuthLoginPostBody => "";
 
+        public string AuthLoginCSRFCookie => "";
+
         public string CsvDelimiter => ";";
 
         public string CsvFilePath => @"C:\tmp\output.csv";

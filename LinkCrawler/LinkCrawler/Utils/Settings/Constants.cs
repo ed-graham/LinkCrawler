@@ -9,8 +9,6 @@
             public const string OnlyReportBrokenLinksToOutput = "OnlyReportBrokenLinksToOutput";
             public const string CheckImages = "CheckImages";
             public const string FollowRedirects = "FollowRedirects";
-            public const string AuthLoginUrl = "Auth.Login.Url";
-            public const string AuthLoginPostBody = "Auth.Login.PostBody";
             public const string SlackWebHookUrl = "Slack.WebHook.Url";
             public const string SlackWebHookBotName = "Slack.WebHook.Bot.Name";
             public const string SlackWebHookBotIconEmoji = "Slack.WebHook.Bot.IconEmoji";

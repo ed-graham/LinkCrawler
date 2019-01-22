@@ -10,6 +10,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
+using System.Web;
 
 namespace LinkCrawler
 {
@@ -18,9 +20,10 @@ namespace LinkCrawler
         public string BaseUrl { get; set; }
         public bool CheckImages { get; set; }
         public bool FollowRedirects { get; set; }
-        private bool NeedToLogIn { get; set; }
-        private string AuthLoginUrl { get; set; }
-        private string AuthLoginPostBody { get; set; }
+        public string LoginUrl { get; set; }
+        public string UserName { get; set; }
+        public string Password { get; set; }
+        public string LogoutUrl { get; set; }
 
         private RestRequest GetRequest { get; set; }
         private RestRequest PostRequest { get; set; }
@@ -31,7 +34,7 @@ namespace LinkCrawler
         public List<LinkModel> UrlList;
         private readonly ISettings _settings;
         private readonly Stopwatch timer;
-
+        
         public LinkCrawler(IEnumerable<IOutput> outputs, IValidUrlParser validUrlParser, ISettings settings)
         {
             BaseUrl = settings.BaseUrl;
@@ -39,9 +42,6 @@ namespace LinkCrawler
             ValidUrlParser = validUrlParser;
             CheckImages = settings.CheckImages;
             FollowRedirects = settings.FollowRedirects;
-            AuthLoginUrl = settings.AuthLoginUrl ?? "";
-            AuthLoginPostBody = settings.AuthLoginPostBody ?? "";
-            NeedToLogIn = settings.AuthLoginUrl != null;
 
             UrlList = new List<LinkModel>();
             GetRequest = new RestRequest(Method.GET).SetHeader("Accept", "*/*");
@@ -56,43 +56,91 @@ namespace LinkCrawler
         public void Start()
         {
             this.timer.Start();
+            // first check if we need to log in at some point - if so, get it out of the way now
+            if (!String.IsNullOrWhiteSpace(LoginUrl))
+            {
+                LogInToSite();
+            }
+
             UrlList.Add(new LinkModel(BaseUrl));
             SendRequest(BaseUrl);
+        }
+
+        private void LogInToSite()
+        {
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine($"***Getting the log-in page*** ");
+            // first, get the log-in page and associated cookies
+            string loginUrl = BaseUrl + LoginUrl;
+            var requestModel = new RequestModel(loginUrl, "", BaseUrl);
+            Client.BaseUrl = new Uri(loginUrl);
+            // *synchronous* HTTP GET
+            IRestResponse getResponse = Client.Execute(GetRequest);
+            // all cookies are automatically stored thanks to the "Client.CookieContainer = new CookieContainer();" line above - cool or what?
+            PrintCookies();
+            // then parse the request verification token if present in a (hidden) input field
+            string requestVerificationToken = "";
+            string regExSeparator = @"\s+(.*\s+)?";
+            Match rvtMatch = Regex.Match(getResponse.Content, $"<input{regExSeparator}name=\"__RequestVerificationToken\"{regExSeparator}value=\"(?<rvt>.+)\"", RegexOptions.IgnoreCase);
+            if (rvtMatch.Success) requestVerificationToken = rvtMatch.Groups["rvt"].Value;
+            Console.WriteLine($"Form value\t__RequestVerificationToken\t{requestVerificationToken}");
+            // finally, post the log-in details back to the log-in page (with the __RequestVerificationToken cookie and corresponding hidden field if they are present)
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine($"***Posting the credentials back to the server*** ");
+            PostRequest = new RestRequest(Method.POST).SetHeader("Content-Type", "application/x-www-form-urlencoded");
+            // add body
+            string body = (String.IsNullOrWhiteSpace(requestVerificationToken) ? "" : $"__RequestVerificationToken={requestVerificationToken}&") +
+                        // note that the user-name and password must be URL-encoded as they are part of a form response
+                        $"frmLoginEmail={HttpUtility.UrlEncode(UserName)}&frmLoginPass={HttpUtility.UrlEncode(Password)}&frmReturnUrl=%2F";
+            Console.WriteLine($"POST body\t{body}");
+            //PostRequest.AddBody(body); // doesn't work -- results in just <String /> (10 chars) being sent as the message body
+            PostRequest.AddParameter("application/x-www-form-urlencoded", body, ParameterType.RequestBody);
+            // *synchronous* HTTP POST
+            IRestResponse postResponse = Client.Execute(PostRequest);
+            PrintCookies();
+        }
+
+        private void PrintCookies()
+        {
+            Console.WriteLine();
+            Console.WriteLine("**Cookies**");
+            Console.WriteLine();
+            foreach (Cookie cookie in Client.CookieContainer.GetCookies(new Uri(BaseUrl)))
+            {
+                Console.WriteLine($"Cookie\t{cookie.Name}\t{cookie.Value}");
+            }
+            Console.WriteLine();
+        }
+
+        private void IsApplicationCookiePresent()
+        {
+            bool present = false;
+            foreach (Cookie cookie in Client.CookieContainer.GetCookies(new Uri(BaseUrl)))
+            {
+                if (cookie.Name.Contains("ApplicationCookie"))
+                {
+                    present = true;
+                    break;
+                }
+            }
+            Console.WriteLine($"Application cookie: {present}");
         }
 
         public void SendRequest(string crawlUrl, string referrerUrl = "")
         {
             var requestModel = new RequestModel(crawlUrl, referrerUrl, BaseUrl);
             Client.BaseUrl = new Uri(crawlUrl);
-            if (NeedToLogIn && crawlUrl.StartsWith(BaseUrl + AuthLoginUrl))
+            // HTTP GET
+            Client.ExecuteAsync(GetRequest, response =>
             {
-                NeedToLogIn = false; // only try this once, in case we get stuck in an infinite loop of errors
-                Console.WriteLine("***HOLY SHIT!!***");
-                Console.WriteLine("***HOLY SHIT!!***");
-                Console.WriteLine("***HOLY SHIT!!***");
-                Console.WriteLine("***HOLY SHIT!!***");
-                Console.WriteLine("***HOLY SHIT!!***");
-                PostRequest = new RestRequest(Method.POST).AddBody(AuthLoginPostBody) as RestRequest;
-                Client.ExecuteAsync(PostRequest, response =>
-                {
-                    if (response == null)
-                        return;
+                if (response == null)
+                    return;
 
-                    var responseModel = new ResponseModel(response, requestModel, _settings);
-                    ProcessResponse(responseModel);
-                });
-            }
-            else
-            {
-                Client.ExecuteAsync(GetRequest, response =>
-                {
-                    if (response == null)
-                        return;
-
-                    var responseModel = new ResponseModel(response, requestModel, _settings);
-                    ProcessResponse(responseModel);
-                });
-            }
+                var responseModel = new ResponseModel(response, requestModel, _settings);
+                ProcessResponse(responseModel);
+            });
         }
 
         public void ProcessResponse(IResponseModel responseModel)
@@ -130,6 +178,9 @@ namespace LinkCrawler
         {
             foreach (string url in urls)
             {
+                // skip log-out URL, if any (use .StartsWith in case we have no trailing "/" in the scraped URL)
+                if (!String.IsNullOrWhiteSpace(LogoutUrl) && (BaseUrl + LogoutUrl).ToLower().StartsWith(url.ToLower())) continue;
+
                 lock (UrlList)
                 {
                     if (UrlList.Where(l => l.Address == url).Count() > 0)
@@ -156,6 +207,7 @@ namespace LinkCrawler
                 {
                     foreach (var output in Outputs)
                     {
+                        IsApplicationCookiePresent();
                         output.WriteInfo(responseModel);
                     }
                 }

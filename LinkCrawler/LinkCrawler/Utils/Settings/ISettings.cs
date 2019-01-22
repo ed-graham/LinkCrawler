@@ -35,9 +35,5 @@ namespace LinkCrawler.Utils.Settings
         bool IsRedirect(HttpStatusCode statusCode);
 
         bool PrintSummary { get; }
-
-        string AuthLoginUrl { get; }
-
-        string AuthLoginPostBody { get; }
     }
 }
