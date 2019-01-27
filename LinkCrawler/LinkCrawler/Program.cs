@@ -28,7 +28,8 @@ namespace LinkCrawler
                     if (args.Length > 3)
                     {
                         // log-in URL
-                        linkCrawler.LoginUrl = args[1];
+                        string loginUrl = args[1];
+                        linkCrawler.LoginUrl = (loginUrl.EndsWith("/")) ? loginUrl.Substring(0, loginUrl.Length - 1) : loginUrl;
                         // user-name
                         linkCrawler.UserName = args[2];
                         // password
@@ -36,7 +37,13 @@ namespace LinkCrawler
                         if (args.Length > 4)
                         {
                             // log-out URL: need to avoid it otherwise we'll need to log in again!
-                            linkCrawler.LogoutUrl = args[4];
+                            string logoutUrl = args[4];
+                            linkCrawler.LogoutUrl = (logoutUrl.EndsWith("/")) ? logoutUrl.Substring(0, logoutUrl.Length - 1) : logoutUrl;
+                            if (args.Length > 5)
+                            {
+                                // excluded URL stem
+                                linkCrawler.ExcludedUrlStem = args[5];
+                            }
                         }
                     }
                 }

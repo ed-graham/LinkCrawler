@@ -68,7 +68,7 @@ namespace LinkCrawler.Models
                 }
                 else
                 {
-                    return $"{output}";
+                    return $"{output}{Environment.NewLine}\tReferer:\t{ReferrerUrl}";
                 }
             }
         }

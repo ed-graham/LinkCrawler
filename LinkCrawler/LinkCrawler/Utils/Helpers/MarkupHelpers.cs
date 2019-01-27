@@ -33,7 +33,7 @@ namespace LinkCrawler.Utils.Helpers
 
         /// <summary>
         /// Gets a list of all URLs in markup and tries to fix those that Restsharp will have a problem with 
-        /// (i.e relative URLs, URLs with no sceme, mailto links..etc)
+        /// (i.e relative URLs, URLs with no scheme, mailto: links..etc)
         /// </summary>
         /// <returns>List of urls that will work with restsharp for sending http get</returns>
         public static List<string> GetValidUrlListFromMarkup(string markup, IValidUrlParser parser, bool checkImages)

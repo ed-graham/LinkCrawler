@@ -24,6 +24,7 @@ namespace LinkCrawler
         public string UserName { get; set; }
         public string Password { get; set; }
         public string LogoutUrl { get; set; }
+        public string ExcludedUrlStem { get; set; }
 
         private RestRequest GetRequest { get; set; }
         private RestRequest PostRequest { get; set; }
@@ -164,7 +165,7 @@ namespace LinkCrawler
             else
                 redirectUrl = responseModel.Location;
 
-            SendRequest(redirectUrl, responseModel.RequestedUrl);
+            SendRequestsToLinks(new List<string> { redirectUrl }, responseModel.RequestedUrl);
         }
 
         public void CrawlLinksInResponse(IResponseModel responseModel)
@@ -178,17 +179,21 @@ namespace LinkCrawler
         {
             foreach (string url in urls)
             {
-                // skip log-out URL, if any (use .StartsWith in case we have no trailing "/" in the scraped URL)
-                if (!String.IsNullOrWhiteSpace(LogoutUrl) && (BaseUrl + LogoutUrl).ToLower().StartsWith(url.ToLower())) continue;
+                // remove trailing /s so's not to crawl any of them twice
+                string noSlashUrl = (url.EndsWith("/")) ? url.Substring(0, url.Length - 1) : url;
+                // skip log-out URL, if any
+                if (!String.IsNullOrWhiteSpace(LogoutUrl) && noSlashUrl.ToLower().StartsWith((BaseUrl + LogoutUrl).ToLower())) continue;
+                // skip excluded URLs, if any
+                if (!String.IsNullOrWhiteSpace(ExcludedUrlStem) && noSlashUrl.ToLower().StartsWith((BaseUrl + ExcludedUrlStem).ToLower())) continue;
 
                 lock (UrlList)
                 {
-                    if (UrlList.Where(l => l.Address == url).Count() > 0)
+                    if (UrlList.Where(l => l.Address == noSlashUrl).Count() > 0)
                         continue;
 
-                    UrlList.Add(new LinkModel(url));
+                    UrlList.Add(new LinkModel(noSlashUrl));
                 }
-                SendRequest(url, referrerUrl);
+                SendRequest(noSlashUrl, referrerUrl);
             }
         }
 
